@@ -1,1 +1,1 @@
-<?php include_once("ukraine_damage.html"); ?>
+<?php include_once("home.html"); ?>
