@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Social Media Damage Geolocation</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+<link href="https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.js"></script>
+<style>
+body { margin: 0; padding: 0; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+</style>
+</head>
+<body>
+<style>
+.mapboxgl-popup {
+    max-width: 400px;
+    font: 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+    }
+
+    .map-overlay {
+        font: 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+        position: absolute;
+        width: 25%;
+        top: 0;
+        left: 0;
+        padding: 10px;
+    }
+
+    .map-overlay .map-overlay-inner {
+        background-color: #fff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+
+    .map-overlay h2 {
+        line-height: 24px;
+        display: block;
+        margin: 0 0 10px;
+    }
+
+    .map-overlay .legend .bar {
+        height: 10px;
+        width: 100%;
+        background: linear-gradient(to right, #0755fc, #f00303);
+    }
+
+    .map-overlay input {
+        background-color: transparent;
+        display: inline-block;
+        width: 100%;
+        position: relative;
+        margin: 0;
+        cursor: ew-resize;
+    }
+</style>
+
+<div id="map"></div>
+
+<div class="map-overlay top">
+    <div class="map-overlay-inner">
+        <h2>Ukraine Damage</h2>
+        <label id="month"></label>
+        <input id="slider" type="range" min="0" max="11" step="1" value="0">
+    </div>
+    <div class="map-overlay-inner">
+        <div id="legend" class="legend">
+            <div class="bar"></div>
+            <div>Damage: 1 (single structure) to 3 (city blocks)</div>
+        </div>
+    </div>
+</div>
+
+<script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script>
+	mapboxgl.accessToken = 'pk.eyJ1Ijoic2hheWJzdHJvbmciLCJhIjoiY2lrb2s2NHd0MHhqd3UybTZld2VmdnR5eCJ9.N1vI1QMFi6irgSFLbshi3Q';
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/satellite-streets-v11',
+        center: [31.1656,48.3794],
+        zoom: 5
+    });
+
+    const months = [
+        '2022-02-16',
+        '2022-02-20',
+        '2022-02-23',
+        '2022-02-24',
+        '2022-02-25',
+        '2022-02-26',
+        '2022-02-27',
+        '2022-02-28',
+        '2022-03-01',
+        '2022-03-02',
+        '2022-03-03',
+        '2022-03-04',
+        '2022-03-05',
+        '2022-03-06',
+        '2022-03-07',
+        '2022-03-08',
+        '2022-03-09',
+        '2022-03-10',
+        '2022-03-11',
+        '2022-03-12',
+        '2022-03-13',
+        '2022-03-14',
+        '2022-03-15',
+        '2022-03-16',
+        '2022-03-17',
+        '2022-03-18'
+
+    ];
+    function filterBy(month) {
+        const filters = ['==', 'month', month];
+        map.setFilter('earthquake-circles', filters);
+        map.setFilter('earthquake-labels', filters);
+
+        // Set the label to the month
+        document.getElementById('month').textContent = months[month];
+
+    }
+
+    map.on('load', () => {
+        d3.json(
+            'ukraine_war_damage_sns_18032022.geojson',
+            jsonCallback
+        );
+    });
+    map.on('click', 'earthquake-circles', (e) => {
+            // Copy coordinates array.
+            const coordinates = e.features[0].geometry.coordinates.slice();
+            const source='source';
+            const description = source.link(e.features[0].properties.source_link)+'<br>'+'Published Date: '+e.features[0].properties.published_date_time+'<br>'+'Source Publication Confidence: '+e.features[0].properties.image_confidence;
+            
+            while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+            coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+            }
+            
+            new mapboxgl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(description)
+            .addTo(map);
+            });
+            
+            // Change the cursor to a pointer when the mouse is over the places layer.
+            map.on('mouseenter', 'earthquake-circles', () => {
+            map.getCanvas().style.cursor = 'pointer';
+            });
+            
+            // Change it back to a pointer when it leaves.
+            map.on('mouseleave', 'earthquake-circles', () => {
+            map.getCanvas().style.cursor = '';
+            });
+
+    function jsonCallback(err, data) {
+        if (err) {
+            throw err;
+        }
+
+        // Create a month property value based on time
+        // used to filter against.
+        data.features = data.features.map((d) => {
+            d.properties.month = d.properties.date_int;
+            return d;
+        });
+
+        map.addSource('earthquakes', {
+            'type': 'geojson',
+            data: data
+        });
+
+
+        map.addLayer({
+            'id': 'earthquake-circles',
+            'type': 'circle',
+            'source': 'earthquakes',
+            'paint': {
+                'circle-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'damage_mag'],
+                    0,
+                    '#0755fc',
+                    3,
+                    '#f00303'
+                ],
+                'circle-opacity': 0.75,
+                'circle-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'damage_mag'],
+                    0,
+                    20,
+                    3,
+                    40
+                ]
+            }
+        });
+
+        map.addLayer({
+            'id': 'earthquake-labels',
+            'type': 'symbol',
+            'source': 'earthquakes',
+            'layout': {
+                'text-field': ['concat', ['to-string', ['get', 'damage_mag']]],
+                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                'text-size': 12
+            },
+            'paint': {
+                'text-color': 'rgba(0,0,0,0.5)'
+            }
+        });
+
+
+        // Set filter to first month of the year
+        // 0 = January
+        filterBy(0);
+
+        document.getElementById('slider').addEventListener('input', (e) => {
+            const month = parseInt(e.target.value, 10);
+            filterBy(month);
+        });
+
+    }
+ 
+</script>
+
+</body>
+</html>
